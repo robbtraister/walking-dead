@@ -1,143 +1,122 @@
 var fs = require('fs');
 var http = require('http');
+var path = require('path');
 var url = require('url');
 
+var request = require('request');
+var xmldom = require('xmldom');
 
-function get(uri, headers, cbk) {
-	var parts = url.parse(uri);
-	var options = {
-		method: 'GET',
-		hostname: parts.host,
-		port: parts.protocol == 'https' ? 443 : 80,
-		path: parts.path
-	};
-	if (headers) {
-		options.headers = headers;
-	}
 
-	http.request(options, function(res){
-		var data = '';
-		res.on('data', function(chunk){
-			data += chunk;
-		})
-		res.on('end', function() {
-			if (cbk) {
-				cbk(res, data);
-			}
-		});
-	}).end();
+Object.array = function(obj) {
+  var arr = [];
+  for (var i=0; i<obj.length; i++) {
+    arr.push(obj[i]);
+  }
+  return arr;
 }
 
 
-function Crawler() {
-	this.cookies = null;
-}
-
-Crawler.prototype.getCookies = function(cbk) {
-	if (this.cookies) {
-		if (cbk) {
-			cbk(this.cookies);
-		}
-	} else {
-		get('http://www.hellocomic.com/comic/view?slug=the-walking-dead', null, function(res){
-			this.cookies = {};
-			res.headers['set-cookie'].forEach(function(cookie){
-				var kv = cookie.split(';', 1)[0].split('=', 2);
-				this.cookies[kv[0]] = kv[1];
-			});
-			if (cbk) {
-				cbk(this.cookies);
-			}
-		});
-	}
-};
-
-Crawler.prototype.get = function(uri, cbk) {
-	this.getCookies(function(cookies){
-		var cookieList = [];
-		Object.keys(cookies).forEach(function(cookie){
-			cookieList.push(cookie + '=' + cookies[cookie]);
-		});
-
-		get(uri, {'Cookie': cookieList.join(';')}, cbk);
+function download(uri, fp, cb) {
+	http.get(uri, function(res) {
+    if (res.statusCode === 200) {
+      var f = fs.createWriteStream(fp);
+      if (cb) {
+        res.on('end', cb);
+      }
+  	  res.pipe(f);
+    } else if (cb) {
+      cb(res.statusCode);
+    }
 	});
 };
 
-function getImageUri(data) {
-	var d = data.replace(/[\r\n]+/g, ' ');
-	var m1 = d.match(/\<div class="coverIssue"\>(.*?)\<\/div\>/m);
-	var m2 = m1[1].match(/\<img([^\>]+)/);
-	var m3 = m2[1].match(/src="([^"]+)/);
-	return m3[1];
-};
 
-function getNextPageUri(data) {
-	var d = data.replace(/[\r\n]+/g, ' ');
-	var m1 = d.match(/\<div class="coverIssue"\>(.*?)\<\/div\>/m);
-	var m2 = m1[1].match(/\<a([^\>]+)/);
-	var m3 = m2[1].match(/href="([^"]+)/);
-	return m3[1];
-};
+function getImgUri(uri, cb) {
+  request(uri, function(err, response, body){
+    if (err) {
+      return cb(err);
+    }
 
-Crawler.prototype.getImage = function(imgUri, imgFile, cbk) {
-	var f = fs.createWriteStream(imgFile);
-	http.get(imgUri, function(res) {
-	  res.pipe(f);
-		if (cbk) {
-			cbk();
-		}
-	});
-};
+    var dom = new xmldom.DOMParser({errorHandler: function(){}}).parseFromString(body);
 
-Crawler.prototype.getPage = function(chapter, page, cbk) {
-	this.get(
-		'http://www.hellocomic.com/the-walking-dead/c' + chapter + '/p' + page,
-		function(res, data){
-			this.getImage(
-				getImageUri(data),
-				'./unabridged/content/issue ' + chapter + '/OEBPS/images/p' + page + '.jpg',
-				function(){
-					if (cbk) {
-						cbk(data);
-					}
-				}
-			);
-		}.bind(this)
-	);
-};
+    var base = dom.getElementsByTagName('base');
+    if (base && base.length) {
+      base = Object.array(base[0].attributes).filter(function(att){
+        return att.name === 'href';
+      })[0].value;
+    } else {
+      base = '';
+    }
 
-Crawler.prototype.getChapter = function(chapter, cbk) {
-	var chapterUriRE = new RegExp('/c0*' + chapter + '/p[0-9]+$');
-	function getNextPage(chapter, page) {
-		this.getPage(chapter, page, function(data){
-			var nextPageUri = getNextPageUri(data);
-			if (nextPageUri.match(chapterUriRE)) {
-				getNextPage.call(this, chapter, page+1);
-			} else if (cbk) {
-				cbk();
-			}
-		}.bind(this));
-	}
+    var img = Object.array(dom.getElementsByTagName('img')).filter(function(img){
+      return Object.array(img.attributes).filter(function(att){
+        return att.name === 'class' && att.value === 'picture';
+      }).length > 0;
+    });
 
-	fs.mkdirSync('./unabridged/content/issue ' + chapter);
-	fs.mkdirSync('./unabridged/content/issue ' + chapter + '/OEBPS');
-	fs.mkdirSync('./unabridged/content/issue ' + chapter + '/OEBPS/images');
-	getNextPage.call(this, chapter, 1);
-};
+    if (img.length > 0) {
+      var href = Object.array(img[0].attributes).filter(function(att){
+        return att.name === 'src';
+      })[0].value;
 
-Crawler.prototype.getAll = function() {
-	function getChapter(chapter) {
-		console.log('getting chapter: ' + chapter);
-		this.getChapter(chapter, function(){
-			if (chapter < 153) {
-				getChapter.call(this, chapter+1);
-			}
-		}.bind(this));
-	}
+      return cb(null, url.resolve(url.resolve(uri, base), href));
+    }
 
-	getChapter.call(this, 1);
+    return cb(404);
+  });
 }
 
 
-var crawler = new Crawler();
-crawler.getAll();
+function getPage(chapter, page, cb) {
+  var c = ('00' + chapter).substr(-3)
+  var p = ('00' + page).substr(-3)
+  fp = path.join(__dirname, 'omg-beau-peep', 'unabridged', 'content', 'c' + c + '-p' + p + '.jpg')
+  if (fs.existsSync(fp)) {
+    cb();
+  } else {
+    getImgUri(
+      'http://www.omgbeaupeep.com/comics/The_Walking_Dead/' + chapter + '/' + page + '/',
+      function(err, uri){
+        if (err) {
+          if (cb) {
+            return cb(err);
+          }
+          return;
+        }
+        console.log(uri)
+
+        download(uri, fp, cb);
+      }
+    );
+  }
+}
+
+function getIssue(chapter, cb) {
+  var page = 1;
+
+  function next(err) {
+    if (err) {
+      if (cb) {
+        return cb(page === 1 && err);
+      }
+      return;
+    }
+
+    page += 1;
+    getPage(chapter, page, next);
+  }
+
+  getPage(chapter, page, next);
+}
+
+
+
+var issue = 163;
+function next(err) {
+  if (err) {
+    return;
+  }
+  issue += 1;
+  getIssue(issue, next);
+}
+getIssue(issue, next);
