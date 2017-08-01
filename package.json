@@ -14,7 +14,7 @@
   "scripts": {
     "abridged": "VERSION_DIR=\"./omg-beau-peep/abridged\" ./build-issues.sh",
     "unabridged": "VERSION_DIR=\"./omg-beau-peep/unabridged\" ./build-issues.sh",
-    "start": "node ./fetch2.js; npm run unabridged",
+    "start": "node ./fetch.js; npm run unabridged",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
