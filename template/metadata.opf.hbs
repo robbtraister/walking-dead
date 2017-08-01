@@ -1,0 +1,27 @@
+<?xml version='1.0' encoding='utf-8'?>
+<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="uuid_id" version="2.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
+	<dc:title>{{title}}</dc:title>
+	<dc:creator opf:role="aut" opf:file-as="{{author}}">{{author}}</dc:creator>
+	<meta content="{&quot;{{author}}&quot;: &quot;&quot;}" name="calibre:author_link_map"/>
+	<meta name="cover" content="cover"/>
+  </metadata>
+  <manifest>
+	<item href="toc.ncx" id="ncx" media-type="application/x-dtbncx+xml"/>
+    <item href="OEBPS/images/{{cover}}.jpg" id="{{cover}}-img" media-type="image/jpeg"/>
+	{{#each pages as |page|}}
+	  <item href="OEBPS/images/{{page}}.jpg" id="{{page}}-img" media-type="image/jpeg"/>
+	{{/each}}
+	{{#each pages as |page|}}
+	  <item href="OEBPS/{{page}}.xhtml" id="{{page}}-htm" media-type="application/xhtml+xml"/>
+	{{/each}}
+  </manifest>
+  <spine toc="ncx">
+	{{#each pages as |page|}}
+	  <itemref idref="{{page}}-htm"/>
+	{{/each}}
+  </spine>
+  <guide>
+	<reference href="OEBPS/images/{{cover}}.jpg" title="Cover" type="cover"/>
+  </guide>
+</package>

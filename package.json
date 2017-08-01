@@ -1,0 +1,22 @@
+{
+  "name": "walking-dead",
+  "version": "1.0.0",
+  "description": "",
+  "main": "construct.js",
+  "dependencies": {
+    "exif": "^0.6.0",
+    "handlebars": "^4.0.5",
+    "image-size": "^0.5.0",
+    "xmldom": "^0.1.22",
+    "xpath.js": "^1.0.6"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "abridged": "VERSION_DIR=\"./omg-beau-peep/abridged\" ./build-issues.sh",
+    "unabridged": "VERSION_DIR=\"./omg-beau-peep/unabridged\" ./build-issues.sh",
+    "start": "node ./fetch2.js; npm run unabridged",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}
