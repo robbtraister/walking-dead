@@ -1,122 +1,131 @@
-var fs = require('fs');
-var http = require('http');
-var path = require('path');
-var url = require('url');
+'use strict'
 
-var request = require('request');
-var xmldom = require('xmldom');
+var childProcess = require('child_process')
+var fs = require('fs')
+var http = require('http')
+var path = require('path')
+var url = require('url')
 
+var request = require('request')
+var xmldom = require('xmldom')
 
-Object.array = function(obj) {
-  var arr = [];
-  for (var i=0; i<obj.length; i++) {
-    arr.push(obj[i]);
+Object.array = function (obj) {
+  var arr = []
+  for (var i = 0; i < obj.length; i++) {
+    arr.push(obj[i])
   }
-  return arr;
+  return arr
 }
 
+function mkdir (d) {
+  return new Promise((resolve, reject) => {
+    childProcess.exec(`mkdir -p ${d}`, (err) => {
+      err ? reject(err) : resolve()
+    })
+  })
+}
 
-function download(uri, fp, cb) {
-	http.get(uri, function(res) {
+function download (uri, fp, cb) {
+  http.get(uri, function (res) {
     if (res.statusCode === 200) {
-      var f = fs.createWriteStream(fp);
-      if (cb) {
-        res.on('end', cb);
-      }
-  	  res.pipe(f);
+      mkdir(path.parse(fp).dir)
+        .then(() => {
+          var f = fs.createWriteStream(fp)
+          if (cb) {
+            res.on('end', cb)
+          }
+          res.pipe(f)
+        })
     } else if (cb) {
-      cb(res.statusCode);
+      cb(res.statusCode)
     }
-	});
+  })
 };
 
-
-function getImgUri(uri, cb) {
-  request(uri, function(err, response, body){
+function getImgUri (uri, cb) {
+  request(uri, function (err, response, body) {
     if (err) {
-      return cb(err);
+      return cb(err)
     }
 
-    var dom = new xmldom.DOMParser({errorHandler: function(){}}).parseFromString(body);
+    var dom = new xmldom.DOMParser({errorHandler: function () {}}).parseFromString(body)
 
-    var base = dom.getElementsByTagName('base');
+    var base = dom.getElementsByTagName('base')
     if (base && base.length) {
-      base = Object.array(base[0].attributes).filter(function(att){
-        return att.name === 'href';
-      })[0].value;
+      base = Object.array(base[0].attributes).filter(function (att) {
+        return att.name === 'href'
+      })[0].value
     } else {
-      base = '';
+      base = ''
     }
 
-    var img = Object.array(dom.getElementsByTagName('img')).filter(function(img){
-      return Object.array(img.attributes).filter(function(att){
-        return att.name === 'class' && att.value === 'picture';
-      }).length > 0;
-    });
+    var img = Object.array(dom.getElementsByTagName('img')).filter(function (img) {
+      return Object.array(img.attributes).filter(function (att) {
+        return att.name === 'class' && att.value === 'picture'
+      }).length > 0
+    })
 
     if (img.length > 0) {
-      var href = Object.array(img[0].attributes).filter(function(att){
-        return att.name === 'src';
-      })[0].value;
+      var href = Object.array(img[0].attributes).filter(function (att) {
+        return att.name === 'src'
+      })[0].value
 
-      return cb(null, url.resolve(url.resolve(uri, base), href));
+      return cb(null, url.resolve(url.resolve(uri, base), href))
     }
 
-    return cb(404);
-  });
+    return cb(404)
+  })
 }
 
-
-function getPage(chapter, page, cb) {
+function getPage (chapter, page, cb) {
   var c = ('00' + chapter).substr(-3)
   var p = ('00' + page).substr(-3)
-  fp = path.join(__dirname, 'omg-beau-peep', 'unabridged', 'content', 'c' + c + '-p' + p + '.jpg')
+  var fp = path.join(__dirname, 'omg-beau-peep', 'unabridged', 'content', 'c' + c, 'c' + c + '-p' + p + '.jpg')
   if (fs.existsSync(fp)) {
-    cb();
+    cb()
   } else {
     getImgUri(
       'http://www.omgbeaupeep.com/comics/The_Walking_Dead/' + chapter + '/' + page + '/',
-      function(err, uri){
+      function (err, uri) {
         if (err) {
           if (cb) {
-            return cb(err);
+            return cb(err)
           }
-          return;
+          return
         }
         console.log(uri)
 
-        download(uri, fp, cb);
+        download(uri, fp, cb)
       }
-    );
+    )
   }
 }
 
-function getIssue(chapter, cb) {
-  var page = 1;
+function getIssue (chapter, cb) {
+  var page = 1
 
-  function next(err) {
+  function next (err) {
     if (err) {
       if (cb) {
-        return cb(page === 1 && err);
+        return cb(page === 1 && err, chapter)
       }
-      return;
+      return
     }
 
-    page += 1;
-    getPage(chapter, page, next);
+    page += 1
+    getPage(chapter, page, next)
   }
 
-  getPage(chapter, page, next);
+  getPage(chapter, page, next)
 }
 
-
-
-var issue = 163;
-function next(err) {
+function nextIssue (err, issue) {
   if (err) {
-    return;
+    return
   }
-  issue += 1;
-  getIssue(issue, next);
+  getIssue(issue + 1, nextIssue)
 }
-getIssue(issue, next);
+
+if (module === require.main) {
+  process.argv.length > 2 ? getIssue(process.argv[2]) : getIssue(1, nextIssue)
+}

@@ -19,7 +19,7 @@ for c in `seq $START $STOP`;
 do
 	#CHAPTER=`echo "000$c" | sed "s/^.*\([0-9]\{3\}\)$/\1/"`
   CHAPTER=$(printf %03d $c)
-	cp "$CONTENT_DIR/c$CHAPTER-"* "$SRC_DIR/OEBPS/images/";
+	cp "$CONTENT_DIR/c$CHAPTER/c$CHAPTER-"* "$SRC_DIR/OEBPS/images/";
 done;
 
 node construct.js "$SRC_DIR" "$3" "$4"

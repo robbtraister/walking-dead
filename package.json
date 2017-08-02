@@ -7,6 +7,7 @@
     "exif": "^0.6.0",
     "handlebars": "^4.0.5",
     "image-size": "^0.5.0",
+    "request": "^2.81.0",
     "xmldom": "^0.1.22",
     "xpath.js": "^1.0.6"
   },
